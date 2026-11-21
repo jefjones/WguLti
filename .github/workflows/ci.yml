@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  dotnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build
+        run: dotnet build WguLti.sln --configuration Release
+      - name: Test
+        run: dotnet test WguLti.sln --configuration Release --no-build --verbosity normal
+
+  client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install and build
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply scripts
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          psql -d postgres -v ON_ERROR_STOP=1 -v app_password='ci-app-password' -v readonly_password='ci-ro-password' -f db/000_create_database.sql
+          psql -d wgulti -v ON_ERROR_STOP=1 --single-transaction -f db/V001__baseline.sql
+          psql -d wgulti -v ON_ERROR_STOP=1 --single-transaction -f db/V002__seed_reference.sql
+      - name: Run database checks
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+        run: |
+          PGPASSWORD='ci-app-password' psql -U wgulti_app -d wgulti -v ON_ERROR_STOP=1 -f db/tests/smoke.sql
+          PGPASSWORD='ci-app-password' psql -U wgulti_app -d wgulti -v ON_ERROR_STOP=1 -f db/tests/permissions.sql
+          PGPASSWORD='ci-ro-password' psql -U wgulti_readonly -d wgulti -v ON_ERROR_STOP=1 -f db/tests/readonly.sql

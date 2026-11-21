@@ -1,0 +1,36 @@
+## .NET
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+TestResults/
+artifacts/
+*.DotSettings.user
+
+## Keys and secrets
+*.pem
+*.pfx
+*.p12
+appsettings.*.local.json
+secrets.json
+.wgulti/
+
+## Node
+node_modules/
+client/dist/
+client/.vite/
+npm-debug.log*
+
+## OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+## Env
+.env
+.env.*
+!.env.example
